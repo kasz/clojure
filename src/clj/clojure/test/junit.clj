@@ -111,12 +111,11 @@
   (finish-element 'testsuite true))
 
 (defn message-el
-  [tag message expected-str actual-str]
+  [tag message expected-str actual-str line file]
   (indent)
   (start-element tag false (if message {:message message} {}))
   (element-content
-   (let [[file line] (t/file-position 5)
-         detail (apply str (interpose
+   (let [detail (apply str (interpose
                             "\n"
                             [(str "expected: " expected-str)
                              (str "  actual: " actual-str)
@@ -126,17 +125,19 @@
   (println))
 
 (defn failure-el
-  [message expected actual]
-  (message-el 'failure message (pr-str expected) (pr-str actual)))
+  [message expected actual line file]
+  (message-el 'failure message (pr-str expected) (pr-str actual) line file))
 
 (defn error-el
-  [message expected actual]
+  [message expected actual line file]
   (message-el 'error
               message
               (pr-str expected)
               (if (instance? Throwable actual)
                 (with-out-str (stack/print-cause-trace actual t/*stack-trace-depth*))
-                (prn actual))))
+                (prn actual))
+              line
+              file))
 
 ;; This multimethod will override test-is/report
 (defmulti ^:dynamic junit-report :type)
@@ -168,14 +169,18 @@
    (t/inc-report-counter :fail)
    (failure-el (:message m)
                (:expected m)
-               (:actual m))))
+               (:actual m)
+               (:line m)
+               (:file m))))
 
 (defmethod junit-report :error [m]
   (t/with-test-out
-   (t/inc-report-counter :error)
-   (error-el (:message m)
-             (:expected m)
-             (:actual m))))
+    (t/inc-report-counter :error)
+    (error-el (:message m)
+              (:expected m)
+              (:actual m)
+              (:line m)
+              (:file m))))
 
 (defmethod junit-report :default [_])
 
